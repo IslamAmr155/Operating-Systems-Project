@@ -9,14 +9,28 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "PQ/PQ.h"
 #include <signal.h>
 
-typedef short bool;
+// typedef short bool;
 #define true 1
 #define false 0
 
 #define SHKEY 300
 
+struct processData
+{
+    int arrivaltime;
+    int priority;
+    int runningtime;
+    int id;
+};
+
+struct msgbuff
+{
+    long mtype;
+    struct processData process;
+};
 
 ///==============================
 //don't mess with this variable//
