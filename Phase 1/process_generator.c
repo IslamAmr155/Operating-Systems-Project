@@ -8,9 +8,8 @@ int main(int argc, char * argv[])
 {
     signal(SIGINT, clearResources);
     // TODO Initialization
-    struct processData arr[100];
+    struct pcb arr[100];
     int counter = 0;
-
     // 1. Read the input files.
     printf("Opening file...\n");
     FILE * pFile = fopen("processes.txt", "r");
@@ -43,10 +42,11 @@ int main(int argc, char * argv[])
             int priority;
             fscanf(pFile, "%d", &priority);
             // create a process
-            struct processData process;
+            struct pcb process;
             process.id = id;
             process.arrivaltime = arrivalTime;
             process.runningtime = runningTime;
+            process.remainingtime = runningTime;
             process.priority = priority;
             // add the process to the queue
             arr[counter] = process;
@@ -66,7 +66,7 @@ int main(int argc, char * argv[])
     printf("Reading array contents...\n");
     for(int i = 0; i < counter; i++)
     {
-        struct processData process = arr[i];
+        struct pcb process = arr[i];
         printf("id: %d, arr: %d, run: %d, pri: %d\n", process.id, process.arrivaltime, process.runningtime, process.priority);
     }
     printf("Contents read successfully!\n");
@@ -93,31 +93,25 @@ int main(int argc, char * argv[])
         char * args[] = {"./clk.o", NULL};
         execv(args[0], args);
     }
-    else
+    printf("Clock running!\n");
+    // run the scheduler.o file using exec
+    schedulerPid = fork();
+    if (schedulerPid == -1)
     {
-        printf("Clock running!\n");
-        // run the scheduler.o file using exec
-        schedulerPid = fork();
-        if (schedulerPid == -1)
-        {
-            perror("Error in fork");
-            exit(EXIT_FAILURE);
-        }
-        else if (schedulerPid == 0)
-        {
-            printf("Forked Scheduler!\n");
-            char * args[] = {"./scheduler.o", NULL};
-            execv(args[0], args);
-        }
-        // else
-        // {
-            printf("Scheduler running!\n");
-        //     // wait for the scheduler to finish
-        //     waitpid(schedulerPid, NULL, 0);
-        // }
-        // // wait for the clock to finish
-        // waitpid(clkPid, NULL, 0);
+        perror("Error in fork");
+        exit(EXIT_FAILURE);
     }
+    else if (schedulerPid == 0)
+    {
+        printf("Forked Scheduler!\n");
+        char str[100], str2[100];
+        sprintf(str, "%d", algorithm);
+        sprintf(str2, "%d", counter);
+        char * args[] = {"./scheduler.o", str, str2, NULL};
+        execv(args[0], args);
+    }
+    printf("Scheduler running!\n");
+
     // 4. Use this function after creating the clock process to initialize clock
     initClk();
     // To get time use this
@@ -135,6 +129,13 @@ int main(int argc, char * argv[])
         perror("Error in creating message queue");
         exit(-1);
     }
+
+    struct msgbuff message;
+    // message.mtype = algorithm;
+    // sendMsg(msgqid, &message, true);
+    // message.mtype = counter;
+    // sendMsg(msgqid, &message, true);
+
     int i = 0;
     while (counter != i)
     {
@@ -142,15 +143,10 @@ int main(int argc, char * argv[])
         while (i < counter && arr[i].arrivaltime == getClk())
         {
             // send the process to the scheduler
-            struct msgbuff message;
-            message.mtype = 1;      // HAL HATEFRE2 FE 7AGA??
+            message.mtype = algorithm;
             message.process = arr[i];
-            int send_val = msgsnd(msgqid, &message, sizeof(message.process), !IPC_NOWAIT);
-            if(send_val == -1)
-            {
-                perror("Error in sending message");
-                exit(-1);
-            }
+            sendMsg(msgqid, &message, false);
+            printf("Process sent -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, getClk());
             i++;
         }
     }

@@ -30,6 +30,9 @@ int main(int argc, char * argv[])
         perror("Error in creating shm!");
         exit(-1);
     }
+
+    printf("Clock created shm_id: %d\n", shmid);
+    
     int * shmaddr = (int *) shmat(shmid, (void *)0, 0);
     if ((long)shmaddr == -1)
     {
