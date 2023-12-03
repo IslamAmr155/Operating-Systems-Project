@@ -9,8 +9,9 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "cc_pq/cc_pqueue.h"
-#include "cc_pq/cc_pqueue.c"
+#include "cc_dst/cc_pqueue.c"
+#include "cc_dst/cc_list.c"
+#include "cc_dst/cc_ring_buffer.c"
 #include "CQ.h"
 #include <signal.h>
 
@@ -22,6 +23,7 @@
 
 struct pcb
 {
+    int pid;
     short id;
     short arrivaltime;
     short runningtime;

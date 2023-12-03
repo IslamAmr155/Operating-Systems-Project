@@ -10,5 +10,5 @@ clean:
 
 all: clean build
 
-run:
+abood:
 	./process_generator.out

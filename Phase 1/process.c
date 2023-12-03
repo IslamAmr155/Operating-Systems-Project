@@ -10,7 +10,7 @@ int main(int agrc, char * argv[])
     
     key_t key_id = ftok("keyfile", 77);
     // Create/Get shared memory for one integer variable 4 bytes
-    shm_id = shmget(key_id, 4, IPC_CREAT | 0644);
+    shm_id = shmget(key_id, 4, 0644);
     if ((long)shm_id == -1)
     {
         perror("Error in creating shm!");
@@ -27,19 +27,23 @@ int main(int agrc, char * argv[])
     }
     
     //TODO it needs to get the remaining time from somewhere
-
     while (*shmAddr > 0)
     {
         printf("Process %d: Remaining time = %d\n", getpid(), *shmAddr);
+        printf("Clock = %d\n", *shmaddr);
         int prev = getClk();
         while(prev == getClk());
         (*shmAddr)--;
+        printf("I am resuming here!\n");
     }
+
+    kill(getppid(), SIGUSR1);
     
+    printf("Process finished at time: %d\n", getClk());
     destroyClk(false);
 
     // deattach from shared memory
-    shmdt(shmaddr);
+    shmdt(shmAddr);
     
     return 0;
 }
