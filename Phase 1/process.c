@@ -17,10 +17,13 @@ int main(int agrc, char * argv[])
     //TODO it needs to get the remaining time from somewhere
     do
     {
-        receiveSpecificMsg(msgqIdProcess, &message, true, mtype);
+        receiveSpecificMsg(msgqIdProcess, &message, true, getpid());
+        message.process.remainingtime--;
         printf("Process %d: Remaining time = %d\n", mtype, message.process.remainingtime);
         printf("Clock = %d\n", getClk());
         printf("-------------------------------------------------\n");
+        message.mtype = getppid();
+        sendMsg(msgqIdProcess, &message, true);
     } while(message.process.remainingtime);
 
     exit(mtype);

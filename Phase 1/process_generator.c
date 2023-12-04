@@ -114,8 +114,7 @@ int main(int argc, char * argv[])
 
     // 6. Send the information to the scheduler at the appropriate time.
     // We are assuming that the processes will be sent in a message queue.
-    key_t key = ftok("keyfile", 65);
-    msgqid = msgget(key, 0666 | IPC_CREAT);
+    msgqid = msgget(GENKEY, 0666 | IPC_CREAT);
     if(msgqid == -1)
     {
         perror("Error in creating message queue");

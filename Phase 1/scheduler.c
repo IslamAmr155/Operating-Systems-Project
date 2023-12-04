@@ -13,7 +13,7 @@ int compare_priority(const void *a, const void *b){
     return p1->priority < p2->priority ? 1 : -1;
 }
 
-int compare_remaining_time(void *a, void *b){
+int compare_remaining_time(const void *a, const void *b){
     struct pcb *p1 = (struct pcb *)a;
     struct pcb *p2 = (struct pcb *)b;
     return p1->remainingtime < p2->remainingtime ? 1 : -1;
@@ -24,7 +24,12 @@ int getWait(){
 }
 
 void logging(char *event) {
-    fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, event, processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getWait());            
+    fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d", getClk(), processTable[current].id, event, processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getWait());            
+    if (event != "finished")
+        fprintf(pFile, "\n");
+    else
+        fprintf(pFile, " TA %d WTA %.2f\n", getClk() - processTable[current].arrivaltime, (float)(getClk() - processTable[current].arrivaltime) / processTable[current].runningtime);
+        
 }
 
 // Synchronizing the scheduler with the clock; if the process is over, it will be terminated
@@ -34,10 +39,11 @@ void sync(){
         return;
 
     // Synchronizing the scheduler with each process, so that each process receives its specific message
-    message.mtype = processTable[current].id;
-    --processTable[current].remainingtime;
+    message.mtype = processTable[current].pid;
     message.process = processTable[current];
     sendMsg(msgqIdProcess, &message, true);
+    receiveSpecificMsg(msgqIdProcess, &message, true, getpid());
+    processTable[current] = message.process;
 
     // If the process is over, terminate it
     if(!processTable[current].remainingtime)
@@ -83,52 +89,92 @@ void run() {
 }
 
 void hpf(CC_PQueue *cc_pq){
-    int processes = 0;
-    int counter = 0;
-    while(processes < capacity){
+    int count_received;
+    while(received_processes < capacity || cc_pq->size || current != 0){
 
-        while(receiveMsg(msgq_id, &message, false) != -1)
+        // Synchronizing the scheduler with the clock
+        down(semclk);
+
+        printf("Ana lessa bad5ol!\n");
+
+        // Synchronizing the process with the scheduler.
+        sync();
+
+        // Receiving new processes
+        count_received = receive();
+
+        // Enqueueing the received processes
+        while(count_received--)
         {
-            processTable[message.process.id - 1] = message.process;
-            printf("Process received -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, getClk());
-            cc_pqueue_push(cc_pq, &(processTable[message.process.id - 1]));
-            counter++;
+            printf("New process %ld is being created \n", received_processes - count_received);
+            cc_pqueue_push(cc_pq, &(processTable[received_processes - count_received]));
         }
 
-        if(counter == 0)
+        // If there is a process running, since HPF is non-preemptive, we will not interrupt it
+        if(current != 0)
             continue;
         
-        void *p;
-        cc_pqueue_pop(cc_pq, &p);
-        counter--;
-        struct pcb *current = (struct pcb *)p;
-        *shm_addr = current->remainingtime;
-        current->pid = fork();
-        if (current->pid == 0)
-        {
-            char *args[] = {"./process.out", NULL};
-            execv(args[0], args);
+        // Context Switching
+        printf("size of pq now: %ld\n", cc_pq->size);
+        if(cc_pq->size){
+
+            // Schedule a new process to run
+            void *p;
+            cc_pqueue_pop(cc_pq, &p);
+            current = ((struct pcb *)p)->id;
+
+            // Fork a new process to run
+            run();
         }
-        fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), current->id, "started", current->arrivaltime, current->runningtime, current->remainingtime, getClk() - current->arrivaltime);
-        processes++;
-
-        waitpid(current->pid, NULL, 0);
-
-        int time = getClk();
-        current->finishtime = time;
-        int pID = current->id;
-        int pArr = current->arrivaltime;
-        int pRun = current->runningtime;
-        int pRemain = *shm_addr;
-        int pTA = current->finishtime - pArr;
-        int pWait = pTA - current->runningtime;
-        float pWTA = (float)pTA / pRun;
-        fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d TA %d WTA %.2f\n", time, pID, "finished", pArr, pRun, pRemain, pWait, pTA, pWTA);
     }
 }
 
-void srtn(CC_PQueue pq){
-    
+void srtn(CC_PQueue *cc_pq){
+    int count_received;
+    while(received_processes < capacity || cc_pq->size || current != 0)
+    {
+        // Synchronizing the scheduler with the clock
+        down(semclk);
+
+        // Synchronizing the process with the scheduler.
+        sync();
+        
+        // Receiving new processes
+        count_received = receive();
+
+        // If there is a new process, then I need to check if I need to context switch
+        // If there is no new process, then I continue only if there is a process running as I am sure it has the least remaining time
+        // or there are no processes in the queue so I need to check if there are new processes to receive
+        if(!count_received && (current || !cc_pq->size))
+            continue;
+        
+        // If there is a process running, then I need to check if I need to context switch
+        if (current != 0)
+            cc_pqueue_push(cc_pq, &(processTable[current]));
+
+        // Enqueueing the received processes
+        while(count_received--)
+        {
+            printf("New process %ld is being created \n", received_processes - count_received);
+            cc_pqueue_push(cc_pq, &(processTable[received_processes - count_received]));
+        }
+
+        void *p;
+        cc_pqueue_pop(cc_pq, &p);
+
+        // If the process is the same as the current process, then I do not need to context switch
+        if(current == ((struct pcb *)p)->id)
+            continue;
+        
+        
+        if(current != 0)            
+            logging("stopped");
+        
+        current = ((struct pcb *)p)->id;
+        printf("Current: %ld\n", current);
+
+        run();
+    } 
 }
 
 void rr(CC_Rbuf *rbuf){
@@ -182,10 +228,8 @@ int main(int argc, char * argv[])
     
     //TODO implement the scheduler :)
     //upon termination release the clock resources.
-    key_t key_id;
 
-    key_id = ftok("keyfile", 65);
-    msgq_id = msgget(key_id, 0666 | IPC_CREAT);
+    msgq_id = msgget(GENKEY, 0666 | IPC_CREAT);
     int algorithm = atoi(argv[1]);
     capacity = atoi(argv[2]);
     processTable = malloc((capacity+1) * sizeof(struct pcb));
@@ -209,15 +253,16 @@ int main(int argc, char * argv[])
         exit(-1);
     }
 
+    CC_PQueue *cc_pq;
     switch (algorithm)
     {
     case 1:
-        CC_PQueue *cc_pq;
         cc_pqueue_new(&cc_pq, compare_priority);
         hpf(cc_pq);
         break;
     case 2:
-        // pq = pq_new_queue(capacity, compare_remaining_time, status);
+        cc_pqueue_new(&cc_pq, compare_remaining_time);
+        srtn(cc_pq);
         break;
     default:
         CC_Rbuf *cc_rbuf;

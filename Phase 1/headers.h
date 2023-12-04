@@ -19,6 +19,7 @@
 #define true 1
 #define false 0
 
+#define GENKEY 200
 #define SHKEY 300
 #define SEMKEY 400
 #define MSGKEY 500
