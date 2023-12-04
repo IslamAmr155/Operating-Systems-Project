@@ -1,6 +1,6 @@
 #include "headers.h"
 
-int capacity, msgq_id, *shm_addr;
+int capacity, msgq_id, *shm_addr, msgqIdProcess, quanta, Qtemp = 0;
 uint64_t current = 0;
 struct msgbuff message;
 FILE *pFile;
@@ -21,9 +21,23 @@ int compare_remaining_time(void *a, void *b){
 
 void rrHandler(int signum)
 {
+    signal(SIGUSR1, rrHandler);
     printf("Process %ld is finished!\n", current);
-    fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "finished", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
+    fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "finished", processTable[current].arrivaltime, processTable[current].runningtime, 0, getClk() - processTable[current].arrivaltime);
     // free(&processTable[current]);
+    Qtemp = 0;
+    current = 0;
+}
+
+void clearResourcesOfScheduler(int signum)
+{
+    //TODO Clears all resources in case of interruption
+    destroyClk(true);
+    msgctl(msgqIdProcess, IPC_RMID, (struct msqid_ds *)0);
+    // delete semaphores
+    semctl(semclk, 0, IPC_RMID, NULL);
+    fclose(pFile);
+    exit(0);
 }
 
 void hpf(CC_PQueue *cc_pq){
@@ -76,17 +90,26 @@ void srtn(CC_PQueue pq){
 }
 
 void rr(CC_Rbuf *rbuf){
-    signal(SIGUSR1, rrHandler);
-    int prev = getClk();
     uint64_t processes = 1;
-    while(processes <= capacity)
+    signal(SIGUSR1, rrHandler);
+    while(processes <= capacity || !cc_rbuf_is_empty(rbuf) || current != 0)
     {
+        // printf("%ld out of %d, cond1 = %d, cond2 = %d\n", processes, capacity, !cc_rbuf_is_empty(rbuf), current != 0);
+        printf("-------------------------------------------------\n");
+        if(current){
+            printf("SENDING to %d...\n", processTable[current].id);
+            message.mtype = processTable[current].id;
+            sendMsg(msgqIdProcess, &message, true);
+        }
+        
+        down(semclk);
+
+        Qtemp = Qtemp ? Qtemp - 1 : 0;
+        
         // wait for message if empty or check for new messages
-        if(receiveMsg(msgq_id, &message, cc_rbuf_is_empty(rbuf)) != -1)
+        if(receiveMsg(msgq_id, &message, false) != -1)
             printf("Process received -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, getClk());
-        
-        prev = getClk();
-        
+
         if(message.mtype == processes)
         {
             printf("New process %ld is being created\n", processes);
@@ -94,47 +117,48 @@ void rr(CC_Rbuf *rbuf){
             processTable[processes] = message.process;
             processes++;
         }
-        
-        if(current != 0) {
-            // print shared memory before process is stopped
-            printf("At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "stopped", processTable[current].arrivaltime, processTable[current].runningtime, *shm_addr, getClk() - processTable[current].arrivaltime);
-            printf("Current %ld is going to sleep now!\n", current);
-            kill(processTable[current].pid, SIGTSTP);
-            processTable[current].remainingtime = *shm_addr;
-            fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "stopped", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
-            if(!(*shm_addr == 0))
-                cc_rbuf_enqueue(rbuf, current);
-        }
-        
-        cc_rbuf_dequeue(rbuf, &current);
-        printf("Current = %ld is dequeued!\n", current);
-        *shm_addr = processTable[current].remainingtime;
 
-        // fork or resume
-        if(processTable[current].pid == -1){
-            fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "started", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
-            printf("At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "started", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
-            processTable[current].pid = fork();
-            if (processTable[current].pid == 0)
-            {
-                char *args[] = {"./process.out", NULL};
-                execv(args[0], args);
+        // context switching
+        if(!cc_rbuf_is_empty(rbuf) && Qtemp == 0){
+
+            // Suspend current process
+            if(current != 0){
+                printf("Current %ld is going to sleep now!\n", current);
+                processTable[current].remainingtime = *shm_addr;
+                fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "stopped", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
+                if (*(shm_addr) != 0)
+                    cc_rbuf_enqueue(rbuf, current);
+                current = 0;
             }
-        } else {
-            fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "resumed", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
-            // print shared memory before process is resumed
-            printf("At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "resumed", processTable[current].arrivaltime, processTable[current].runningtime, *shm_addr, getClk() - processTable[current].arrivaltime);
-            kill(processTable[current].pid, SIGCONT);
+
+            // Schedule a new process to run
+            cc_rbuf_dequeue(rbuf, &current);
+            printf("Current = %ld is dequeued!\n", current);
+            *shm_addr = processTable[current].remainingtime;
+
+             // fork or resume
+            if(processTable[current].pid == -1){
+                fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "started", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
+                processTable[current].pid = fork();
+                if (processTable[current].pid == 0)
+                {
+                    char str[100];
+                    sprintf(str, "%d", processTable[current].id);
+                    char *args[] = {"./process.out", str, NULL};
+                    execv(args[0], args);
+                }
+            } else {
+                fprintf(pFile, "At time %d process %d %s arr %d total %d remain %d wait %d\n", getClk(), processTable[current].id, "resumed", processTable[current].arrivaltime, processTable[current].runningtime, processTable[current].remainingtime, getClk() - processTable[current].arrivaltime);
+            }
+            Qtemp = quanta;
         }
-        
-        printf("prev = %d\n", prev);
-        while(prev == getClk());
     }
 }
 
 int main(int argc, char * argv[])
 {
     initClk();
+    signal(SIGINT, clearResourcesOfScheduler);
     
     //TODO implement the scheduler :)
     //upon termination release the clock resources.
@@ -145,6 +169,19 @@ int main(int argc, char * argv[])
     int algorithm = atoi(argv[1]);
     capacity = atoi(argv[2]);
     processTable = malloc((capacity+1) * sizeof(struct pcb));
+    quanta = atoi(argv[3]);
+
+    semclk = semget(SEMKEY, 1, 0666);
+
+    key_t key = ftok("keyfile", 40);
+    msgqIdProcess = msgget(key, 0666 | IPC_CREAT);
+    if(msgqIdProcess == -1)
+    {
+        perror("Error in creating message queue of processes");
+        exit(-1);
+    }
+
+    struct msgbuff message;
 
     // Shared memory that contains the remaining time for the running process
     key_id = ftok("keyfile", 77);
@@ -169,6 +206,7 @@ int main(int argc, char * argv[])
         exit(-1);
     }
 
+
     switch (algorithm)
     {
     case 1:
@@ -181,6 +219,7 @@ int main(int argc, char * argv[])
         break;
     default:
         CC_Rbuf *cc_rbuf;
+        quanta = atoi(argv[3]);
         cc_rbuf_new(&cc_rbuf);
         rr(cc_rbuf);
         break;

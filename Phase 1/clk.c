@@ -25,9 +25,25 @@ int main(int argc, char * argv[])
     int clk = 0;
     //Create shared memory for one integer variable 4 bytes
     shmid = shmget(SHKEY, 4, IPC_CREAT | 0644);
+    
     if ((long)shmid == -1)
     {
         perror("Error in creating shm!");
+        exit(-1);
+    }
+
+    //Create clk semaphore 
+    semclk = semget(SEMKEY, 1, 0666 | IPC_CREAT);
+    if (semclk == -1)
+    {
+        perror("Error in create sem");
+        exit(-1);
+    }
+
+    union Semun semun;
+    semun.val = 1;
+    if (semctl(semclk, 0, SETVAL, semun) == -1){
+        perror("Error in semctl");
         exit(-1);
     }
 
@@ -42,7 +58,9 @@ int main(int argc, char * argv[])
     *shmaddr = clk; /* initialize shared memory */
     while (1)
     {
+        printf("Clock = %d\n", *shmaddr);
         sleep(1);
         (*shmaddr)++;
+        up(semclk);
     }
 }

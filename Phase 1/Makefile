@@ -10,5 +10,5 @@ clean:
 
 all: clean build
 
-abood:
+os:
 	./process_generator.out

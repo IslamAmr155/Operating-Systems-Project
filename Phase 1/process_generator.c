@@ -58,12 +58,17 @@ int main(int argc, char * argv[])
     fclose(pFile);
 
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
-    int algorithm;
+    int algorithm, quantum = 0;
     printf("Please enter the number of the desired scheduling algorithm:\n");
     printf("1. HPF\n");
     printf("2. SRTN\n");
     printf("3. RR\n");
     scanf("%d", &algorithm);
+    if(algorithm == 3)
+    {
+        printf("Please enter the quantum:\n");
+        scanf("%d", &quantum);
+    }
 
     // 3. Initiate and create the scheduler and clock processes.
     int schedulerPid;
@@ -89,15 +94,17 @@ int main(int argc, char * argv[])
     else if (schedulerPid == 0)
     {
         printf("Forked Scheduler!\n");
-        char str[100], str2[100];
+        char str[100], str2[100], str3[100];
         sprintf(str, "%d", algorithm);
         sprintf(str2, "%d", counter);
-        char * args[] = {"./scheduler.out", str, str2, NULL};
+        sprintf(str3, "%d", quantum);
+        char * args[] = {"./scheduler.out", str, str2, str3, NULL};
         execv(args[0], args);
     }
 
     // 4. Use this function after creating the clock process to initialize clock
     initClk();
+
     // To get time use this
     int x = getClk();
     printf("current time is %d\n", x);
