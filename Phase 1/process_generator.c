@@ -2,7 +2,7 @@
 
 void clearResources(int);
 
-int msgqid;
+int msgqid = -1;
 
 int main(int argc, char * argv[])
 {
@@ -107,7 +107,6 @@ int main(int argc, char * argv[])
 
     // To get time use this
     int x = getClk();
-    printf("current time is %d\n", x);
 
     // TODO Generation Main Loop
     // 5. Create a data structure for processes and provide it with its parameters.
@@ -150,6 +149,14 @@ void clearResources(int signum)
 {
     //TODO Clears all resources in case of interruption
     signal(SIGINT, clearResources);
-    msgctl(msgqid, IPC_RMID, (struct msqid_ds *)0);
+    if(msgqid != -1)
+        msgctl(msgqid, IPC_RMID, (struct msqid_ds *)0);
+    int msgqProcess = msgget(MSGKEY, 0666);
+    if(msgqProcess != -1)
+        msgctl(msgqProcess, IPC_RMID, (struct msqid_ds *)0);
+    // delete semaphores
+    int semclk = semget(SEMKEY, 1, 0666);
+    if(semclk != -1)
+        semctl(semclk, 0, IPC_RMID, NULL);
     kill(getpid(), SIGKILL);
 }

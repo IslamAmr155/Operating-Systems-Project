@@ -21,6 +21,7 @@
 
 #define SHKEY 300
 #define SEMKEY 400
+#define MSGKEY 500
 
 struct pcb
 {

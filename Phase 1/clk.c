@@ -41,7 +41,7 @@ int main(int argc, char * argv[])
     }
 
     union Semun semun;
-    semun.val = 1;
+    semun.val = 0;
     if (semctl(semclk, 0, SETVAL, semun) == -1){
         perror("Error in semctl");
         exit(-1);
@@ -58,7 +58,7 @@ int main(int argc, char * argv[])
     *shmaddr = clk; /* initialize shared memory */
     while (1)
     {
-        printf("Clock = %d\n", *shmaddr);
+        printf("Clock el clk: %d\n", *shmaddr);
         sleep(1);
         (*shmaddr)++;
         up(semclk);

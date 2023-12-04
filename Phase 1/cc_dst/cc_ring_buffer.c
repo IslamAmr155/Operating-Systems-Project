@@ -96,12 +96,17 @@ void cc_rbuf_enqueue(CC_Rbuf *rbuf, uint64_t item)
     // if (rbuf->head == rbuf->tail)
     //     rbuf->tail = (rbuf->tail + 1) % rbuf->capacity;
 
+    printf("Enquing %ld\n", item);
     rbuf->buf[rbuf->head] = item;
 
     rbuf->head = (rbuf->head + 1) % rbuf->capacity;
 
     if (rbuf->size < rbuf->capacity)
         ++rbuf->size;
+
+    for(int i = rbuf->tail; i < (rbuf->tail + rbuf->size); i++)
+        printf("%ld ", rbuf->buf[i]);
+    printf("\n");
 }
 
 enum cc_stat cc_rbuf_dequeue(CC_Rbuf *rbuf, uint64_t *out)
@@ -112,10 +117,16 @@ enum cc_stat cc_rbuf_dequeue(CC_Rbuf *rbuf, uint64_t *out)
     }
 
     *out = rbuf->buf[rbuf->tail];
+    printf("Dequing %ld\n", *out);
 
     rbuf->tail = (rbuf->tail + 1) % rbuf->capacity;
     --rbuf->size;
-    return CC_OK;
+
+    for(int i = rbuf->tail; i < (rbuf->tail + rbuf->size); i++)
+        printf("%ld ", rbuf->buf[i]);
+    printf("\n");
+    
+     return CC_OK;
 }
 
 
