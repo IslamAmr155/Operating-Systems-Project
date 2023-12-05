@@ -1,6 +1,8 @@
 #include "headers.h"
+#include <math.h>
 
-int capacity, msgq_id, *shm_addr, msgqIdProcess, quanta, Qtemp = 0;
+int capacity, msgq_id, *shm_addr, msgqIdProcess, quanta, Qtemp = 0, sum_waiting = 0;
+float sum_wta = 0, *wta;
 uint64_t current = 0, received_processes = 0;
 struct msgbuff message;
 FILE *pFile;
@@ -56,6 +58,11 @@ void checkFinished(){
         printf("Process %d is finished!\n", status);
         logging("finished");
         Qtemp = 0;
+        sum_waiting += getWait();
+        printf("accumulating %d, sum_waiting = %d\n", getWait(), sum_waiting);
+        sum_wta += (float)(getClk() - processTable[current]->arrivaltime) / processTable[current]->runningtime;
+        wta[current] = (float)(getClk() - processTable[current]->arrivaltime) / processTable[current]->runningtime;
+        printf("accumulating %0.2f, sum_wta = %0.2f\n", wta[current], sum_wta);
         // Delete the process from the process table
         free(processTable[current]);
         processTable[current] = NULL;
@@ -239,16 +246,17 @@ int main(int argc, char * argv[])
     
     //TODO implement the scheduler :)
     //upon termination release the clock resources.
-
-    msgq_id = msgget(GENKEY, 0666 | IPC_CREAT);
     int algorithm = atoi(argv[1]);
     capacity = atoi(argv[2]);
-    processTable = malloc((capacity+1) * sizeof(struct pcb *));
     quanta = atoi(argv[3]);
 
-    semclk = semget(SEMKEY, 1, 0666);
+    processTable = malloc((capacity+1) * sizeof(struct pcb *));
+    wta = malloc((capacity+1) * sizeof(float));
 
+    msgq_id = msgget(GENKEY, 0666 | IPC_CREAT);
+    semclk = semget(SEMKEY, 1, 0666);
     msgqIdProcess = msgget(MSGKEY, 0666 | IPC_CREAT);
+    
     if(msgqIdProcess == -1)
     {
         perror("Error in creating message queue of processes");
@@ -285,8 +293,25 @@ int main(int argc, char * argv[])
 
     fclose(pFile);
 
-    
+    pFile = fopen("scheduler.perf", "w");
+    if(pFile == NULL)
+    {
+        perror("Error in opening scheduler.log");
+        exit(-1);
+    }
 
+    float avg_wta = (float)sum_wta / capacity;
+    // CPU utilization
+    fprintf(pFile, "Avg WTA = %.2f\n", avg_wta);
+    fprintf(pFile, "Avg Waiting = %.2f\n", (float)sum_waiting / capacity);
+
+    float std_wta = 0;
+    for (int i = 1; i <= capacity; i++)
+        std_wta += ((wta[i]-avg_wta) * (wta[i]-avg_wta));
+    
+    fprintf(pFile, "Std WTA = %.2f\n", sqrt(std_wta / capacity));
+
+    fclose(pFile);
     destroyClk(true);
     return 0;
 }
