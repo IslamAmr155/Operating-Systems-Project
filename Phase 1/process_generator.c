@@ -70,6 +70,26 @@ int main(int argc, char * argv[])
         scanf("%d", &quantum);
     }
 
+    msgqid = msgget(GENKEY, 0666 | IPC_CREAT);
+    if(msgqid == -1)
+    {
+        perror("Error in creating message queue");
+        exit(-1);
+    }
+
+    struct msgbuff message;
+
+    int i = 1;
+    while (i <= counter && arr[i - 1].arrivaltime == 0)
+    {
+        // send the process to the scheduler
+        message.mtype = i;
+        message.process = arr[i - 1];
+        sendMsg(msgqid, &message, false);
+        printf("Process sent -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority,0);
+        i++;
+    }
+
     // 3. Initiate and create the scheduler and clock processes.
     int schedulerPid;
     int clkPid = fork();
@@ -114,16 +134,6 @@ int main(int argc, char * argv[])
 
     // 6. Send the information to the scheduler at the appropriate time.
     // We are assuming that the processes will be sent in a message queue.
-    msgqid = msgget(GENKEY, 0666 | IPC_CREAT);
-    if(msgqid == -1)
-    {
-        perror("Error in creating message queue");
-        exit(-1);
-    }
-
-    struct msgbuff message;
-
-    int i = 1;
     while (counter+1 != i)
     {
         // check if the process has arrived
