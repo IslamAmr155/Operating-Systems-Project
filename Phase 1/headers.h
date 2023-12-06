@@ -34,6 +34,7 @@ struct pcb
     short starttime;
     short remainingtime;
     short finishtime;
+    char* state;
 };
 
 union Semun

@@ -1,7 +1,7 @@
 #include "headers.h"
 #include <math.h>
 
-int capacity, msgq_id, *shm_addr, msgqIdProcess, quanta, Qtemp = 0, sum_waiting = 0;
+int capacity, msgq_id, *shm_addr, msgqIdProcess, quanta, Qtemp = 0, sum_waiting = 0, sum_running = 0;
 float sum_wta = 0, *wta;
 uint64_t current = 0, received_processes = 0;
 struct msgbuff message;
@@ -50,7 +50,7 @@ void sync(){
 
 void checkFinished(){
     // If the process is over, terminate it
-    if(!processTable[current]->remainingtime)
+    if(current && !processTable[current]->remainingtime)
     {
         int status;
         int finished = wait(&status);
@@ -61,6 +61,7 @@ void checkFinished(){
         sum_waiting += getWait();
         printf("accumulating %d, sum_waiting = %d\n", getWait(), sum_waiting);
         sum_wta += (float)(getClk() - processTable[current]->arrivaltime) / processTable[current]->runningtime;
+        sum_running += processTable[current]->runningtime;
         wta[current] = (float)(getClk() - processTable[current]->arrivaltime) / processTable[current]->runningtime;
         printf("accumulating %0.2f, sum_wta = %0.2f\n", wta[current], sum_wta);
         // Delete the process from the process table
@@ -74,6 +75,7 @@ int receive(){
     // receive all incoming processes
     int count = 0;
     while(receiveMsg(msgq_id, &message, false) != -1){
+        message.process.state = "waiting";
         printf("Process received -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, getClk());
         received_processes++;
         processTable[received_processes] = malloc(sizeof(struct pcb));
@@ -86,6 +88,7 @@ int receive(){
 
 void run() {
     // If there is no pid saved in the process, it did not run before
+    processTable[current]->state = "running";
     if(processTable[current]->pid == -1){
         logging("started");
         processTable[current]->pid = fork();
@@ -170,8 +173,10 @@ void srtn(CC_PQueue *cc_pq){
             if(current != (*(struct pcb **)p)->id)
             {
                 // If the process is different from the current process, then I need to context switch, so log stop on the current process
-                if(current != 0)            
+                if(current != 0){
                     logging("stopped");
+                    processTable[current]->state = "waiting";
+                }
                 
                 current = (*(struct pcb **)p)->id;
                 printf("Current: %ld\n", current);
@@ -212,6 +217,7 @@ void rr(CC_Rbuf *rbuf){
             // Suspend current process
             if(current != 0){
                 logging("stopped");
+                processTable[current]->state = "waiting";
                 cc_rbuf_enqueue(rbuf, current);
                 current = 0;
             }
@@ -243,6 +249,7 @@ void rr(CC_Rbuf *rbuf){
 int main(int argc, char * argv[])
 {
     initClk();
+    printf("HELPPPPPPPPPPP\n");
     
     //TODO implement the scheduler :)
     //upon termination release the clock resources.
@@ -302,6 +309,7 @@ int main(int argc, char * argv[])
 
     float avg_wta = (float)sum_wta / capacity;
     // CPU utilization
+    fprintf(pFile, "CPU Utilization = %.2f%%\n", ((float)sum_running / getClk()) * 100);
     fprintf(pFile, "Avg WTA = %.2f\n", avg_wta);
     fprintf(pFile, "Avg Waiting = %.2f\n", (float)sum_waiting / capacity);
 
