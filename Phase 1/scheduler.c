@@ -249,7 +249,6 @@ void rr(CC_Rbuf *rbuf){
 int main(int argc, char * argv[])
 {
     initClk();
-    printf("HELPPPPPPPPPPP\n");
     
     //TODO implement the scheduler :)
     //upon termination release the clock resources.

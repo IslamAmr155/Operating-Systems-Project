@@ -3,14 +3,15 @@
 void clearResources(int);
 
 int msgqid = -1;
+struct pcb* arr;
 
 int main(int argc, char * argv[])
 {
     signal(SIGINT, clearResources);
     // TODO Initialization
-    struct pcb arr[100];
     // CC_List processes;
     int counter = 0;
+    printf("YOU MAY START...\n");
 
     // 1. Read the input files.
     FILE * pFile = fopen("processes.txt", "r");
@@ -19,6 +20,22 @@ int main(int argc, char * argv[])
         perror("Error in opening file");
         exit(EXIT_FAILURE);
     }
+
+    // Determine no. of processes
+    int count = 0;
+    while(!feof(pFile))
+    {
+        for (char c = getc(pFile); c != EOF; c = getc(pFile)){
+            if (c == '\n'){ // Increment count if this character is newline
+                count = count + 1;
+                printf("Count = %d\n", count);
+            }
+        }
+    }
+    arr = malloc((count) * sizeof(struct pcb));
+    printf("before seek\n");
+    fseek(pFile, 0, SEEK_SET);
+    printf("after seek\n");
     while(!feof(pFile))
     {
         char c = fgetc(pFile);
@@ -158,6 +175,7 @@ void clearResources(int signum)
 {
     //TODO Clears all resources in case of interruption
     signal(SIGINT, clearResources);
+    free(arr);
     if(msgqid != -1)
         msgctl(msgqid, IPC_RMID, (struct msqid_ds *)0);
     int msgqProcess = msgget(MSGKEY, 0666);
