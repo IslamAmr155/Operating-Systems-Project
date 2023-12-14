@@ -12,13 +12,19 @@ struct pcb **processTable;
 int compare_priority(const void *a, const void *b){
     struct pcb **p1 = (struct pcb **)a;
     struct pcb **p2 = (struct pcb **)b;
-    return (*p1)->priority < (*p2)->priority ? 1 : -1;
+    if((*p1)->priority != (*p2)->priority)
+        return (*p1)->priority < (*p2)->priority ? 1 : -1;
+    else
+        return (*p1)->id < (*p2)->id ? 1 : -1;
 }
 
 int compare_remaining_time(const void *a, const void *b){
     struct pcb **p1 = (struct pcb **)a;
     struct pcb **p2 = (struct pcb **)b;
-    return (*p1)->remainingtime < (*p2)->remainingtime ? 1 : -1;
+    if((*p1)->remainingtime != (*p2)->remainingtime)
+        return (*p1)->remainingtime < (*p2)->remainingtime ? 1 : -1;
+    else
+        return (*p1)->id < (*p2)->id ? 1 : -1;
 }
 
 int getWait(){
