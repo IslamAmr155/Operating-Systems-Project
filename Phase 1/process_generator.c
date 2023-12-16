@@ -58,6 +58,10 @@ int main(int argc, char * argv[])
         // read the priority
         int priority;
         fscanf(pFile, "%d", &priority);
+        // read the memsize
+        int memsize;
+        fscanf(pFile, "%d", &memsize);
+
         fgetc(pFile);
 
         // create a process
@@ -68,6 +72,7 @@ int main(int argc, char * argv[])
         process.runningtime = runningTime;
         process.remainingtime = runningTime;
         process.priority = priority;
+        process.memsize = memsize;
         // add the process to the queue
         arr[counter] = process;
         counter++;
@@ -160,7 +165,7 @@ int main(int argc, char * argv[])
             message.mtype = i;
             message.process = arr[i - 1];
             sendMsg(msgqid, &message, false);
-            printf("Process sent -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, getClk());
+            printf("Process sent -> P_ID = %d, P_arr: %d, P_run: %d, P_pri: %d, P_memsize: %d at %d\n", message.process.id, message.process.arrivaltime, message.process.runningtime, message.process.priority, message.process.memsize, getClk());
             i++;
         }
     }

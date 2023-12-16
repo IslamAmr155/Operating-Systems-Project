@@ -34,7 +34,18 @@ struct pcb
     short starttime;
     short remainingtime;
     short finishtime;
+    short memsize;
     char* state;
+};
+
+struct node
+{
+    int start;
+    int end;
+    bool isHole;
+    struct node* left;
+    struct node* right;
+    struct node* parent;
 };
 
 union Semun
