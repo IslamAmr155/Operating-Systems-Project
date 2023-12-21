@@ -256,6 +256,7 @@ void hpf(CC_PQueue *cc_pq)
             printf("New process %ld is being created \n", received_processes - count_received);
             mem[received_processes - count_received] = allocate(processTable[received_processes - count_received]->memsize);
             if(mem[received_processes - count_received] == (void *)0){
+                printf("Process %ld added to waiting list.\n", received_processes - count_received);
                 cc_pqueue_push(waiting_list, &(processTable[received_processes - count_received]));
             } else {
                 printf("pushing %ld\n", received_processes - count_received);
@@ -286,7 +287,8 @@ void hpf(CC_PQueue *cc_pq)
 
         // Check if the current process is finished
         bool finish = checkFinished();
-        while(finish && waiting_list->size)
+        int size = waiting_list->size;
+        while(finish && size--)
         {
             void *p;
             cc_pqueue_pop(waiting_list, &p);
@@ -361,7 +363,8 @@ void srtn(CC_PQueue *cc_pq)
        // Check if the current process is finished
         
         bool finish = checkFinished();
-        while(finish && waiting_list->size)
+        int size = waiting_list->size;
+        while(finish && size--)
         {
             void *p;
             cc_pqueue_pop(waiting_list, &p);
@@ -429,7 +432,8 @@ void rr(CC_Rbuf *rbuf)
 
         // Check if the current process is finished
         bool finish = checkFinished();
-        while(finish && waiting_list->size)
+        int size = waiting_list->size;
+        while(finish && size--)
         {
             void *p;
             cc_pqueue_pop(waiting_list, &p);
